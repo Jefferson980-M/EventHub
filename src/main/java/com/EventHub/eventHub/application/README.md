@@ -1,0 +1,1 @@
+This package contains the application layer.

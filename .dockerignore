@@ -1,0 +1,11 @@
+# Ignorar el archivo application.properties para evitar problemas de codificación
+src/main/resources/application.properties
+
+# Ignorar directorios y archivos comunes de Maven y Git
+target/
+.mvn/
+.idea/
+.git/
+*.iml
+*.log
+*.bak
