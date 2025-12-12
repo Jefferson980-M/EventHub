@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # Servicio de la Base de Datos PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: eventhub-db
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=eventhub
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - eventhub-network
+    healthcheck: # Añadido healthcheck para la base de datos
+      test: ["CMD-SHELL", "pg_isready -U user -d eventhub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10 # Aumentado a 10
+      start_period: 10s # Añadido para dar tiempo inicial al arranque
+
+  # Servicio de la Aplicación Spring Boot
+  app:
+    build: . # Construye la imagen usando el Dockerfile en el directorio actual
+    container_name: eventhub-app
+    depends_on:
+      db:
+        condition: service_healthy # Espera a que la base de datos esté saludable
+    environment:
+      # Configuración de la Base de Datos para Docker Compose
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/eventhub
+      - SPRING_DATASOURCE_USERNAME=user
+      - SPRING_DATASOURCE_PASSWORD=password
+      - SPRING_JPA_DATABASE=postgresql
+      - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_JPA_SHOW_SQL=true
+      - SPRING_FLYWAY_BASELINE_ON_MIGRATE=true
+      - SPRING_FLYWAY_PROPERTIES_FLYWAY_POSTGRESQL_USE_PREPARED_STATEMENTS=false
+
+      # Configuración de Logging
+      - LOGGING_LEVEL_ORG_HIBERNATE_SQL=DEBUG
+      - LOGGING_LEVEL_ORG_HIBERNATE_ORM_JDBC_BIND=TRACE
+
+      # Configuración del Pool de Conexiones Hikari
+      - SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=3
+      - SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE=1
+
+      # Configuración JWT
+      - JWT_SECRET=aVeryLongAndSecureSecretKeyThatIsAtLeast256BitsLongForHS256
+      - JWT_EXPIRATION=86400000
+
+      # Configuración de Actuator
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,metrics,prometheus
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+      - MANAGEMENT_INFO_BUILD_ENABLED=true
+    ports:
+      - "8080:8080"
+    networks:
+      - eventhub-network
+
+  # Servicio de Adminer (Gestor de Base de Datos Web)
+  adminer:
+    image: adminer
+    container_name: eventhub-adminer
+    ports:
+      - "8081:8080"
+    networks:
+      - eventhub-network
+
+# Definición de la red para que los contenedores se comuniquen
+networks:
+  eventhub-network:
+    driver: bridge
+
+# Definición del volumen para la persistencia de datos de la BD
+volumes:
+  postgres_data:
+    driver: local
